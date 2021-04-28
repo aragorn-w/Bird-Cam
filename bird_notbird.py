@@ -1,8 +1,9 @@
 from os import path, listdir, environ
 from os.path import join
 environ['TF_CPP_MIN_LOG_LEVEL'] = '1' # hide info logs, but not warnings, errors, or fatals
+
 from keras_gen_and_image_arrays import *
-from config import *
+from configvars import *
 
 from PIL import Image as PIL
 import numpy as np
@@ -70,7 +71,7 @@ totalNumFiles = sum(numClassFilesList)
 oneHotImageDirs = np.zeros((totalNumFiles, numClasses+1), dtype=object)    # one-encoded numpy array, but rightmost column is for filepaths
 startArangeIndex = 0
 for classIndex, numClassFiles in enumerate(numClassFilesList):
-    oneHotImageDirs[np.arange(startArangeIndex, startArangeIndex+numClassFiles), classIndex] = 1
+    oneHotImageDirs[np.arange(startArangeIndex, startArangeIndex+numClassFiles), classIndex] = 1.
     startArangeIndex += numClassFiles
 oneHotImageDirs[:, -1] = masterFileDirList
 print("One-hot encoded labels array shape:", oneHotImageDirs.shape)
@@ -87,7 +88,9 @@ for i in range(min(totalNumFiles, 3)):
 testAmount = int(splitPercentage*totalNumFiles)
 print(f"\nSetting aside {testAmount} ({round(splitPercentage*100, 2)}%) images for testing dataset")
 testDirs, trainDirs = oneHotImageDirs[:testAmount], oneHotImageDirs[testAmount:]
-print(f"testDirs: {len(testDirs)}, trainDirs: {len(trainDirs)}")
+numTrainImages, numTestImages = len(trainDirs), len(testDirs)
+numTrainBatches, numTestBatches = numTrainImages // batchSize, numTestImages // batchSize
+print(f"# of test images: {numTestImages}, # of train images: {numTrainImages}")
 
 
 
@@ -96,7 +99,7 @@ print("\n\nCreating custom keras generators...")
 trainGen = KerasGeneratorFromFile(trainDirs, batchSize)
 testGen = KerasGeneratorFromFile(testDirs, batchSize)
 print("Test dataset generator: ", end="")
-sampleBatch = trainGen.__getitem__(len(trainDirs) // batchSize)
+sampleBatch = trainGen.__getitem__(0)   # get first batch
 print(f"({sampleBatch[0].shape}, {sampleBatch[1].shape}) shape returned")
 
 
@@ -126,54 +129,64 @@ for layer in internalLayers:    # Loop to add hidden Layers
     model.add(Dense(layer, activation="relu"))
     model.add(BatchNormalization())
     model.add(Dropout(dropoutAmount))
-#Output Layer
-model.add(Dense(numClasses, activation="softmax"))
+model.add(Dense(numClasses, activation="softmax"))  # Output Layer
 
-#Finish the model
+
+
+# [print(i.shape, i.dtype) for i in model.inputs]
+# [print(o.shape, o.dtype) for o in model.outputs]
+# [print(l.name, l.input_shape, l.dtype) for l in model.layers]
+
+
+
+#Compile, save initialization, and summarize the model
 model.compile(optimizer="adam", loss='categorical_crossentropy', metrics=['accuracy'])
-
-#Save initial
-#model.save_weights(workingDir+"\\"+saveLocation.format(epoch=0))
-
+# model.save_weights(workingDir+"\\"+saveLocation.format(epoch=0))
+print('\n\n')
 model.summary()
-
 #Prepare for saving
-cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=saveLocation,
-                                                 save_weights_only=True,
-                                                 verbose=1)
+cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=saveLocation, save_weights_only=True, verbose=1)
+
 
 
 ##Attempt to load data
-if(saveLoad):
-    print("Attempting to load previous weights")
-    try:
-        latest = tf.train.latest_checkpoint(saveDir)
-        model.load_weights(latest)
-        loss, acc = model.evaluate(testGen, verbose=sharedVerbose)
-        print("Restored model, accuracy: {:5.2f}%".format(100 * acc))
-    except:
-        print("Error in loading: Skipping Loading")
-        saveLoad = False
-if(not(saveLoad)):
-    model.save_weights(saveLocation.format(epoch=0))
+# if saveLoad:
+#     print("\n\nAttempting to load previous weights...")
+#     try:
+#         latest = tf.train.latest_checkpoint(saveDir)
+#         model.load_weights(latest)
+#         loss, acc = model.evaluate(testGen, verbose=sharedVerbose)
+#         print("Restored model, accuracy: {:5.2f}%".format(100 * acc))
+#     except:
+#         print("Error in loading: Skipping Loading")
+#         saveLoad = False
+# if not saveLoad:
+#     model.save_weights(saveLocation.format(epoch=0))
 
-print()
-if(numEpochs != 0):
-    print("Training Start")
+
+
+if numEpochs != 0:
+    print("\n\n Training model...")
     #Training Time
-    model.fit(x=trainGen,
-        steps_per_epoch = int(len(trainDirs) // batchSize),
+    model.fit(
+        x=trainGen,
+        steps_per_epoch = numTrainBatches,
         epochs = numEpochs,
         verbose = sharedVerbose,
         validation_data = testGen,
-        validation_steps = int(len(testDirs) // batchSize),
+        validation_steps = numTestBatches,
         callbacks=[cp_callback])
 else:
-    print("Training Skipped")
+    print("\n\nTraining skipped")
+
+
+
 #Optional Model Export
-if(exportWhenComplete):
+if exportWhenComplete:
     print("Exporting Model")
     model.save(exportLocation)
+
+
 
 print("Starting Demo")
 ##This video camera demo tends to not work as your camera input isn't like the training data at all. It would be fun if it worked but it doesn't
@@ -203,8 +216,8 @@ while True:
         break
 '''
 ##This alternative demo usesing test files. Ensure your trained model is on the same shuffle seed to prevent contamination
-print(int(len(testDirs)/batchSize))
-for batchNum in range(int(len(testDirs)/batchSize)):
+print(numTestBatches)
+for batchNum in range(numTestBatches):
     batchImg,batchLabel = testGen.__getitem__(batchNum)
     predictions = model.predict(batchImg)
     for i in range(len(batchImg)):
