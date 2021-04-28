@@ -1,4 +1,9 @@
-#Imports
+from os import path, listdir, environ
+from os.path import join
+environ['TF_CPP_MIN_LOG_LEVEL'] = '1' # hide info logs, but not warnings, errors, or fatals
+from keras_gen_and_image_arrays import *
+from config import *
+
 from PIL import Image as PIL
 import numpy as np
 import tensorflow as tf
@@ -6,192 +11,134 @@ from tensorflow import keras
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dense, Dropout, Flatten, BatchNormalization
 import cv2 as cv
-from os import path
-from os import listdir
-from os.path import join
-import random
-from math import ceil
+
 
 #Much of this code was taken from https://medium.com/@mrgarg.rajat/training-on-large-datasets-that-dont-fit-in-memory-in-keras-60a974785d71
 
-# ConfigVars
-datasetName = "Dataset"
-saveLocation = "SavedModels\\Checkpoints\\cp-{epoch:04d}.ckpt"
-exportLocation = "SavedModels\\ExportedModels\\model_export"
-saveLoad = True				# Look for a recent save. If it exists: Load it before training
-exportWhenComplete = False
-randomSeed = 12345
-batchSize = 128
-imgSize = (224,224) 		# 32 v 32 reccomended
-numEpochs = 0 				# 0 for no training(Usefull for exporting)
-sharedVerbose = 1
-isGrayScale = False 
-splitPercentage = 0.1
-internalLayers = [64,64]
-dropoutAmount = 0.5 		# Used to prevent overfitting. 0.25 is more than plenty, 0 to disable
-camNum = 0
-
-
-# Functions & Classes
-class KerasGeneratorFromFile(keras.utils.Sequence):
-    def __init__(self, fileArray, batch_size) :
-        self.fileArray = fileArray
-        self.batch_size = batch_size
-
-    def __len__(self):
-        return int(ceil(float(len(self.fileArray)) / float(self.batch_size)))
-
-    def __getitem__(self,idx):
-        #assert (((idx+1) * self.batch_size) <= len(self.fileArray))
-        data = []
-        labels = []
-        for fileID in range((idx * self.batch_size),((idx+1) * self.batch_size)-1):
-            if(fileID >= len(self.fileArray)):
-                break
-            data.append(prepareFileImage(self.fileArray[fileID][0]))
-            labels.append(self.fileArray[fileID][1]) ##This is run every time a batch is requested, it is run a bunch and it isn't the fastest. Too Bad!
-        if(isGrayScale):
-            return (np.reshape(np.array(data),(len(data),imgSize[0],imgSize[1],1)), np.array(labels))
-        else:
-            return (np.reshape(np.array(data),(len(data),imgSize[0],imgSize[1],3)), np.array(labels))
-
-
-def prepareArrayImage(array):
-    return prepareImage(PIL.fromarray(array))
-def prepareImage(img):
-    if(isGrayScale):
-        return np.array(img.convert('L').resize(imgSize))
-    else:
-        return np.array(img.convert('RGB').resize(imgSize))
-def prepareFileImage(imgPath):
-    return prepareImage(PIL.open(imgPath))
-
 
 # Debug Setup
-print("Pillow version:", PIL.__version__)
-print("Tensorflow version:", tf.__version__)
-print("Eager execution:", tf.executing_eagerly())
-filePath = path.dirname(path.realpath(__file__))
-print("Application directory:", filePath)
+print('\n')
+def debugPrintLeft(propertiesDict, leftAlignSpace=40):
+    for propertyLabel, value in propertiesDict.items():
+        print(f"{propertyLabel:<{leftAlignSpace}}{value}")
+workingDir = path.dirname(path.realpath(__file__))
 saveDir = path.dirname(saveLocation)
-print("Save path:", saveDir)
-print(f"Loading from {filePath}\\{saveLocation}")
-print("Exposed GPUs:", tf.config.experimental.list_physical_devices('GPU'))
-print("Exposed CPUs:", tf.config.experimental.list_physical_devices('CPU'), '\n')
-print("Looking for dataset directory: ", end="")
+debugPrintLeft({
+    "Pillow version:": PIL.__version__,
+    "Tensorflow version:": tf.__version__,
+    "Eager execution:": tf.executing_eagerly(),
+    "Working directory:": workingDir,
+    "Save path:": saveDir,
+    "Loading from:": f"{workingDir}\\{saveLocation}",
+    "Exposed GPUs:": tf.config.experimental.list_physical_devices('GPU'),
+    "Exposed CPUs:": tf.config.experimental.list_physical_devices('CPU')
+})
 
-##Get files
-directories = [f for f in listdir(filePath) if path.isdir(join(filePath, f))]
-assert len(directories) > 0
-print("Found "+str(len(directories))+" directories")
-assert datasetName in directories
-for directory in directories:
-    print(" - "+str(directory),end="")
-    if(str(directory) == datasetName):
+
+
+##Validate working directory and count files for each class
+print("\n\nLooking through dataset directory ... ", end="")
+workingDirContents = [f for f in listdir(workingDir) if path.isdir(join(workingDir, f))]
+assert datasetName in workingDirContents and "Missing \'Dataset\' folder"
+for folder in workingDirContents:
+    print(f" - {folder}", end="")
+    if folder == datasetName:
         print("*")
     else:
         print()
-print()
-print("Getting Classifiers "+str(datasetName))
-directories = [f for f in listdir(f'{filePath}\\{datasetName}') if path.isdir(join(f'{filePath}\\{datasetName}', f))]
-for directory in directories:
-    print(" - "+str(directory) + " > "+str(len([f for f in listdir(f'{filePath}\\{datasetName}\\{str(directory)}') if path.isfile(join(filePath+"\\"+datasetName+"\\"+str(directory), f))])) + "# files")
-    
-print()
 
-##Actual Doing stuff
-print("Turning Data into an array")
-##Of course not a np array I hate those and won't use them unless I have to, even if they are more effecient. 
-##If you say this is a list not an array I will trap you inside this program for a thousand years!
 
-masterFileArray = []
-for i in range(len(directories)):
-    files = [f for f in listdir(filePath+"\\"+datasetName+"\\"+str(directories[i])) if path.isfile(join(filePath+"\\"+datasetName+"\\"+str(directories[i]), f))]
-    for file in files:
-        oneHot = [0] * len(directories)
-        oneHot[i] = 1
-        masterFileArray.append((filePath+"\\"+datasetName+"\\"+str(directories[i])+"\\"+str(file),oneHot))
 
-print("Shuffling.")
-random.seed(randomSeed) #Setting a seed allows re-training the same model without contaminiating the test dataset
-random.shuffle(masterFileArray)
+print(f"\n\nEncoding data labels from {datasetName} into numpy array...")
+datasetDir = f"{workingDir}\\{datasetName}"
+classFolderNames = [f for f in listdir(datasetDir) if path.isdir(join(datasetDir, f))]
+numClasses = len(classFolderNames)
+numClassFilesList = []
+masterFileDirList = []
+for classIndex, classFolder in enumerate(classFolderNames):
+    classPath = f"{datasetDir}\\{classFolder}"
+    oneHotIndices = []
+    numFiles = 0
+    for f in listdir(classPath):
+        if path.isfile(join(classPath, f)):
+            masterFileDirList.append(join(classPath, f))
+            numFiles += 1
+    numClassFilesList.append(numFiles)
+    # NOTE: Max size of a python list on a 32 bit system is 536,870,912 elements
+    print(f" - {classFolder} > {numFiles} files")
+totalNumFiles = sum(numClassFilesList)
+oneHotImageDirs = np.zeros((totalNumFiles, numClasses+1), dtype=object)    # one-encoded numpy array, but rightmost column is for filepaths
+startArangeIndex = 0
+for classIndex, numClassFiles in enumerate(numClassFilesList):
+    oneHotImageDirs[np.arange(startArangeIndex, startArangeIndex+numClassFiles), classIndex] = 1
+    startArangeIndex += numClassFiles
+oneHotImageDirs[:, -1] = masterFileDirList
+print("One-hot encoded labels array shape:", oneHotImageDirs.shape)
+print(f"{totalNumFiles} TOTAL IMAGE FILES")
 
-print(str(len(masterFileArray)) + "# Array Elements") 
-for i in range(min(len(masterFileArray),10)):
-    print(str(i) + " : "+ str(masterFileArray[i]))
 
-        
-testAmount = int(splitPercentage*len(masterFileArray))
-print("Setting aside "+str(testAmount)+" as testing ("+str(splitPercentage)+" of total)")
-testFiles = masterFileArray[:testAmount]
-trainFiles = masterFileArray[testAmount:]
-print("testFiles : "+str(len(testFiles)))
-print("trainFiles : "+str(len(trainFiles)))
-print()
+
+print("\n\nShuffling dataset...")
+np.random.seed(randomSeed) #Setting a seed allows re-training the same model without contaminiating the test dataset
+np.random.shuffle(oneHotImageDirs)
+for i in range(min(totalNumFiles, 3)):
+    print(f"{str(i)+':':<5}{oneHotImageDirs[i]}")
+
+testAmount = int(splitPercentage*totalNumFiles)
+print(f"\nSetting aside {testAmount} ({round(splitPercentage*100, 2)}%) images for testing dataset")
+testDirs, trainDirs = oneHotImageDirs[:testAmount], oneHotImageDirs[testAmount:]
+print(f"testDirs: {len(testDirs)}, trainDirs: {len(trainDirs)}")
+
+
 
 #Creating Custom Generators
-print("Creating Generators")
-trainGen = KerasGeneratorFromFile(trainFiles,batchSize)
-testGen = KerasGeneratorFromFile(testFiles,batchSize)
-print("Testing Generator : ",end="")
-sampleImages = trainGen.__getitem__(int(len(trainFiles) // batchSize))
-print("("+str(sampleImages[0].shape)+","+str(sampleImages[1].shape)+") shape returned")
+print("\n\nCreating custom keras generators...")
+trainGen = KerasGeneratorFromFile(trainDirs, batchSize)
+testGen = KerasGeneratorFromFile(testDirs, batchSize)
+print("Test dataset generator: ", end="")
+sampleBatch = trainGen.__getitem__(len(trainDirs) // batchSize)
+print(f"({sampleBatch[0].shape}, {sampleBatch[1].shape}) shape returned")
 
 
 
+print("\n\nGenerating model...")
+model = Sequential([
+    Conv2D(filters=32, kernel_size=(3,3), activation='relu',input_shape=(imgSize[0], imgSize[1], numColorChannels)),
+    BatchNormalization(),
+    Dropout(dropoutAmount),
+    MaxPooling2D(pool_size=(2,2)),
 
+    Conv2D(filters=64, kernel_size=(3,3), activation='relu'),
+    BatchNormalization(),
+    Dropout(dropoutAmount),
+    MaxPooling2D(pool_size=(2,2)),
 
-print("Generating Model")
-model = Sequential()
+    Conv2D(filters=64, kernel_size=(3,3), activation='relu'),
+    BatchNormalization(),
+    Dropout(dropoutAmount),
+    Flatten(),
 
-
-#Convo2D
-
-if(isGrayScale):
-    model.add(Conv2D(filters = 32, kernel_size = (3,3), activation ='relu',input_shape=(imgSize[0],imgSize[1],1)))
-else:
-    model.add(Conv2D(filters = 32, kernel_size = (3,3), activation ='relu',input_shape=(imgSize[0],imgSize[1],3)))
-model.add(BatchNormalization())
-model.add(Dropout(dropoutAmount))
-model.add(MaxPooling2D(pool_size=(2,2)))
-
-#Conv2d #2
-model.add(Conv2D(filters = 64, kernel_size = (3,3), activation ='relu'))
-model.add(BatchNormalization())
-model.add(Dropout(dropoutAmount))
-model.add(MaxPooling2D(pool_size=(2,2)))
-
-#Con2d #3
-model.add(Conv2D(filters = 64, kernel_size = (3,3), activation ='relu'))
-model.add(BatchNormalization())
-model.add(Dropout(dropoutAmount))
-model.add(Flatten())
-
-#Start of regular Network
-
-#Dense First
-model.add(Dense(64, activation = "relu")) ##Input Layer
-model.add(BatchNormalization())
-model.add(Dropout(dropoutAmount))
-
-for layer in internalLayers:#Hidden Layers
-    model.add(Dense(layer, activation = "relu"))
+    Dense(64, activation="relu"),
+    BatchNormalization(),
+    Dropout(dropoutAmount)
+])
+for layer in internalLayers:    # Loop to add hidden Layers
+    model.add(Dense(layer, activation="relu"))
     model.add(BatchNormalization())
     model.add(Dropout(dropoutAmount))
-
 #Output Layer
-model.add(Dense(len(directories), activation = "softmax")) #Classification layer or output layer
+model.add(Dense(numClasses, activation="softmax"))
 
 #Finish the model
 model.compile(optimizer="adam", loss='categorical_crossentropy', metrics=['accuracy'])
 
 #Save initial
-#model.save_weights(filePath+"\\"+saveLocation.format(epoch=0))
+#model.save_weights(workingDir+"\\"+saveLocation.format(epoch=0))
 
 model.summary()
 
 #Prepare for saving
-cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=saveLocation,
+cp_callback = tf.keras.callbacks.ModelCheckpoint(workingDir=saveLocation,
                                                  save_weights_only=True,
                                                  verbose=1)
 
@@ -215,11 +162,11 @@ if(numEpochs != 0):
     print("Training Start")
     #Training Time
     model.fit(x=trainGen,
-        steps_per_epoch = int(len(trainFiles) // batchSize),
+        steps_per_epoch = int(len(trainDirs) // batchSize),
         epochs = numEpochs,
         verbose = sharedVerbose,
         validation_data = testGen,
-        validation_steps = int(len(testFiles) // batchSize),
+        validation_steps = int(len(testDirs) // batchSize),
         callbacks=[cp_callback])
 else:
     print("Training Skipped")
@@ -250,24 +197,24 @@ while True:
         print(str(directories[highestIndex]) +" "+ str(int(1000*highestConfidence)/10)+"%)")
     else:
         print(str(directories[highestIndex]) +" "+ str(int(1000*highestConfidence)/10)+"%")
-    
-    
+
+
     if cv.waitKey(20) & 0xFF==ord('d'):
         break
 '''
 ##This alternative demo usesing test files. Ensure your trained model is on the same shuffle seed to prevent contamination
-print(int(len(testFiles)/batchSize))
-for batchNum in range(int(len(testFiles)/batchSize)):
+print(int(len(testDirs)/batchSize))
+for batchNum in range(int(len(testDirs)/batchSize)):
     batchImg,batchLabel = testGen.__getitem__(batchNum)
     predictions = model.predict(batchImg)
     for i in range(len(batchImg)):
         highestConfidence = max(predictions[i])
         highestIndex = predictions[i].tolist().index(highestConfidence)
-        predictedCatagory = str(directories[batchLabel[i].tolist().index(1)]) + " : "
+        predictedCatagory = str(classFolderNames[batchLabel[i].tolist().index(1)]) + " : "
         if(highestConfidence < 0.5) :
-            predictedCatagory += "None ("+str(directories[highestIndex]) +" "+ str(int(10000*highestConfidence)/100)+"%)"
+            predictedCatagory += "None ("+str(classFolderNames[highestIndex]) +" "+ str(int(10000*highestConfidence)/100)+"%)"
         else:
-            predictedCatagory += str(directories[highestIndex]) +" "+ str(int(10000*highestConfidence)/100)+"%"
+            predictedCatagory += str(classFolderNames[highestIndex]) +" "+ str(int(10000*highestConfidence)/100)+"%"
         cv.imshow(predictedCatagory,cv.resize(np.uint8(batchImg[i]), (600, 600)))
         print("Showing "+str(i)+" predicted as "+str(predictedCatagory))
         cv.waitKey(0)##Wait indefinitly until a key is pressed5
