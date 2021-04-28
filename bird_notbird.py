@@ -138,7 +138,7 @@ model.compile(optimizer="adam", loss='categorical_crossentropy', metrics=['accur
 model.summary()
 
 #Prepare for saving
-cp_callback = tf.keras.callbacks.ModelCheckpoint(workingDir=saveLocation,
+cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=saveLocation,
                                                  save_weights_only=True,
                                                  verbose=1)
 
