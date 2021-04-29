@@ -22,14 +22,17 @@ class KerasGeneratorFromFile(keras.utils.Sequence):
 			fileIndex += startIndex
 			assert fileIndex < len(self.fileArray)
 			# Convert to PIL image with wanted color channel, resize it, then translate it to a numpy array
-			data[fileIndex] = prepareArrayImage(Image.open(self.fileArray[fileIndex][-1]))
-		return (data, np.array(self.fileArray[:, :-1]).astype('float32'))
+			data[fileIndex] = preparePIL_Image(Image.open(self.fileArray[fileIndex][-1]))
+		return (data, np.array(self.fileArray[startIndex:startIndex+self.batchSize, :-1]).astype('float32'))
 
 
 def prepareArrayImage(imageArray):
 	# read into PIL, convert color channel, then resize
 	return np.array(Image.fromarray(imageArray).convert(colorChannelType).resize(imgSize))
 
+
+def preparePIL_Image(imgData):
+	return np.array(imgData.convert(colorChannelType).resize(imgSize))
 
 '''
 def prepareArrayImage(array):

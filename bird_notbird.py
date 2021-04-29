@@ -2,7 +2,7 @@ from os import path, listdir, environ
 from os.path import join
 environ['TF_CPP_MIN_LOG_LEVEL'] = '1' # hide info logs=1, but not warnings=2, errors=3, or fatals=4
 
-from keras_gen import *
+from keras_gen_and_image_arrays import *
 from configvars import *
 
 from PIL import Image as PIL
