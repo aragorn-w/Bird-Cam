@@ -1,7 +1,7 @@
 import numpy as np
 from tensorflow import keras
 from math import ceil
-from PIL import image
+from PIL import Image
 
 from configvars import *
 
