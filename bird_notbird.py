@@ -1,6 +1,6 @@
 from os import path, listdir, environ
 from os.path import join
-environ['TF_CPP_MIN_LOG_LEVEL'] = '1' # hide info logs, but not warnings, errors, or fatals
+environ['TF_CPP_MIN_LOG_LEVEL'] = '1' # hide info logs=1, but not warnings=2, errors=3, or fatals=4
 
 from keras_gen_and_image_arrays import *
 from configvars import *
@@ -68,11 +68,17 @@ for classIndex, classFolder in enumerate(classFolderNames):
     # NOTE: Max size of a python list on a 32 bit system is 536,870,912 elements
     print(f" - {classFolder} > {numFiles} files")
 totalNumFiles = sum(numClassFilesList)
-oneHotImageDirs = np.zeros((totalNumFiles, numClasses+1), dtype=object)    # one-encoded numpy array, but rightmost column is for filepaths
-startArangeIndex = 0
-for classIndex, numClassFiles in enumerate(numClassFilesList):
-    oneHotImageDirs[np.arange(startArangeIndex, startArangeIndex+numClassFiles), classIndex] = 1.
-    startArangeIndex += numClassFiles
+if numClasses > 2: #OneHot
+    startArangeIndex = 0
+    oneHotImageDirs = np.zeros((totalNumFiles, numClasses+1), dtype=object)    # one-encoded numpy array, but rightmost column is for filepaths
+    for classIndex, numClassFiles in enumerate(numClassFilesList):
+        oneHotImageDirs[np.arange(startArangeIndex, startArangeIndex+numClassFiles), classIndex] = 1.
+        startArangeIndex += numClassFiles
+elif numClasses == 2: #Binary
+    oneHotImageDirs = np.zeros((totalNumFiles, 2), dtype=object) #Initialise
+    oneHotImageDirs[:numClassFilesList[0], 0] = 1. #Set the first class to 1
+else:
+	assert False and "Invalid number of classes"
 oneHotImageDirs[:, -1] = masterFileDirList
 print("One-hot encoded labels array shape:", oneHotImageDirs.shape)
 print(f"{totalNumFiles} TOTAL IMAGE FILES")
@@ -84,6 +90,8 @@ np.random.seed(randomSeed) #Setting a seed allows re-training the same model wit
 np.random.shuffle(oneHotImageDirs)
 for i in range(min(totalNumFiles, 3)):
     print(f"{str(i)+':':<5}{oneHotImageDirs[i]}")
+
+
 
 testAmount = int(splitPercentage*totalNumFiles)
 print(f"\nSetting aside {testAmount} ({round(splitPercentage*100, 2)}%) images for testing dataset")
@@ -129,8 +137,6 @@ for layer in internalLayers:    # Loop to add hidden Layers
     model.add(Dense(layer, activation="relu"))
     model.add(BatchNormalization())
     model.add(Dropout(dropoutAmount))
-model.add(Dense(numClasses, activation="softmax"))  # Output Layer
-
 
 
 # [print(i.shape, i.dtype) for i in model.inputs]
@@ -140,7 +146,13 @@ model.add(Dense(numClasses, activation="softmax"))  # Output Layer
 
 
 #Compile, save initialization, and summarize the model
-model.compile(optimizer="adam", loss='categorical_crossentropy', metrics=['accuracy'])
+if (numClasses > 2):
+    model.add(Dense(numClasses, activation="softmax"))  # Classification Layer
+    model.compile(optimizer="adam", loss='categorical_crossentropy', metrics=['accuracy']) #Compile
+else:
+    model.add(Dense(1, activation = "sigmoid")) #Output Layer
+    model.compile(optimizer="adam", loss='binary_crossentropy', metrics=['accuracy'])#Compile
+
 # model.save_weights(workingDir+"\\"+saveLocation.format(epoch=0))
 print('\n\n')
 model.summary()
@@ -150,18 +162,18 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=saveLocation, save_wei
 
 
 ##Attempt to load data
-# if saveLoad:
-#     print("\n\nAttempting to load previous weights...")
-#     try:
-#         latest = tf.train.latest_checkpoint(saveDir)
-#         model.load_weights(latest)
-#         loss, acc = model.evaluate(testGen, verbose=sharedVerbose)
-#         print("Restored model, accuracy: {:5.2f}%".format(100 * acc))
-#     except:
-#         print("Error in loading: Skipping Loading")
-#         saveLoad = False
-# if not saveLoad:
-#     model.save_weights(saveLocation.format(epoch=0))
+if saveLoad:
+    print("\n\nAttempting to load previous weights...")
+    try:
+        latest = tf.train.latest_checkpoint(saveDir)
+        model.load_weights(latest)
+        loss, acc = model.evaluate(testGen, verbose=sharedVerbose)
+        print("Restored model, accuracy: {:5.2f}%".format(100 * acc))
+    except:
+        print("Error in loading: Skipping Loading")
+        saveLoad = False
+if not saveLoad:
+    model.save_weights(saveLocation.format(epoch=0))
 
 
 
@@ -195,10 +207,8 @@ capture = cv.VideoCapture(camNum)
 while True:
     isTrue,frame = capture.read()
     picture = prepareArrayImage(np.asarray(frame))
-    if(isGrayScale):
-        picture = np.reshape(np.array(picture),(imgSize[0],imgSize[1],1))
-    else:
-        picture = np.reshape(np.array(picture),(imgSize[0],imgSize[1],3))
+    picture = np.reshape(np.array(picture),(imgSize[0],imgSize[1],numColorChannels))
+
     cv.imshow('frame',cv.resize(np.uint8(np.array(picture)), (500, 500)))#1000 Output Size
     picture=np.array([picture])
     predictions = model.predict(picture)
@@ -210,8 +220,6 @@ while True:
         print(str(directories[highestIndex]) +" "+ str(int(1000*highestConfidence)/10)+"%)")
     else:
         print(str(directories[highestIndex]) +" "+ str(int(1000*highestConfidence)/10)+"%")
-
-
     if cv.waitKey(20) & 0xFF==ord('d'):
         break
 '''
