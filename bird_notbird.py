@@ -1,7 +1,6 @@
 from os import path, listdir, environ
 from os.path import join
 environ['TF_CPP_MIN_LOG_LEVEL'] = '1' # hide info logs=1, but not warnings=2, errors=3, or fatals=4
-
 from keras_gen import *
 from configvars import *
 
@@ -127,13 +126,13 @@ model = Sequential([
     Dropout(dropoutAmount),
     Flatten(),
 
-    Dense(32, activation="relu"),
-    BatchNormalization(),
+    Dense(16, activation="relu"),
+    # BatchNormalization(),
     Dropout(dropoutAmount)
 ])
-for layer in internalLayers:    # Loop to add hidden Layers
-    model.add(Dense(layer, activation="relu"))
-    model.add(BatchNormalization())
+for layerSize in denseLayerSizes:    # Loop to add hidden Layers
+    model.add(Dense(layerSize, activation="relu"))
+    # model.add(BatchNormalization())
     model.add(Dropout(dropoutAmount))
 
 

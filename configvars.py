@@ -11,7 +11,7 @@ numEpochs = 100 				# 0 for no training (Useful for exporting)
 sharedVerbose = 1
 numColorChannels = 3
 splitPercentage = 0.1       # 1.0 = 100%
-internalLayers = [64,64]
+denseLayerSizes = [64,64]
 dropoutAmount = 0.5 		# Used to prevent overfitting. 0.25 is more than plenty, 0 to disable
 camNum = 0
 
