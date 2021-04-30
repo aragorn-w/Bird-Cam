@@ -2,19 +2,16 @@ from os import path, listdir, environ
 from os.path import join
 environ['TF_CPP_MIN_LOG_LEVEL'] = '1' # hide info logs=1, but not warnings=2, errors=3, or fatals=4
 
-from keras_gen_and_image_arrays import *
+from keras_gen import *
 from configvars import *
 
 from PIL import Image as PIL
 import numpy as np
 import tensorflow as tf
-from tensorflow import keras
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dense, Dropout, Flatten, BatchNormalization
 import cv2 as cv
 
-
-#Much of this code was taken from https://medium.com/@mrgarg.rajat/training-on-large-datasets-that-dont-fit-in-memory-in-keras-60a974785d71
 
 
 # Debug Setup
@@ -68,6 +65,7 @@ for classIndex, classFolder in enumerate(classFolderNames):
     # NOTE: Max size of a python list on a 32 bit system is 536,870,912 elements
     print(f" - {classFolder} > {numFiles} files")
 totalNumFiles = sum(numClassFilesList)
+print('totalNumFiles', totalNumFiles)
 if numClasses > 2: #OneHot
     startArangeIndex = 0
     oneHotImageDirs = np.zeros((totalNumFiles, numClasses+1), dtype=object)    # one-encoded numpy array, but rightmost column is for filepaths
@@ -114,22 +112,22 @@ print(f"({sampleBatch[0].shape}, {sampleBatch[1].shape}) shape returned")
 
 print("\n\nGenerating model...")
 model = Sequential([
-    Conv2D(filters=32, kernel_size=(3,3), activation='relu',input_shape=(imgSize[0], imgSize[1], numColorChannels)),
-    BatchNormalization(),
+    Conv2D(filters=16, kernel_size=(3,3), activation='relu',input_shape=(imgSize[0], imgSize[1], numColorChannels)),
+    # BatchNormalization(),
     Dropout(dropoutAmount),
     MaxPooling2D(pool_size=(2,2)),
 
-    Conv2D(filters=64, kernel_size=(3,3), activation='relu'),
-    BatchNormalization(),
-    Dropout(dropoutAmount),
-    MaxPooling2D(pool_size=(2,2)),
+    # Conv2D(filters=32, kernel_size=(3,3), activation='relu'),
+    # BatchNormalization(),
+    # Dropout(dropoutAmount),
+    # MaxPooling2D(pool_size=(2,2)),
 
-    Conv2D(filters=64, kernel_size=(3,3), activation='relu'),
-    BatchNormalization(),
+    Conv2D(filters=32, kernel_size=(3,3), activation='relu'),
+    # BatchNormalization(),
     Dropout(dropoutAmount),
     Flatten(),
 
-    Dense(64, activation="relu"),
+    Dense(32, activation="relu"),
     BatchNormalization(),
     Dropout(dropoutAmount)
 ])
@@ -162,18 +160,18 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=saveLocation, save_wei
 
 
 ##Attempt to load data
-if saveLoad:
-    print("\n\nAttempting to load previous weights...")
-    try:
-        latest = tf.train.latest_checkpoint(saveDir)
-        model.load_weights(latest)
-        loss, acc = model.evaluate(testGen, verbose=sharedVerbose)
-        print("Restored model, accuracy: {:5.2f}%".format(100 * acc))
-    except:
-        print("Error in loading: Skipping Loading")
-        saveLoad = False
-if not saveLoad:
-    model.save_weights(saveLocation.format(epoch=0))
+# if saveLoad:
+#     print("\n\nAttempting to load previous weights...")
+#     try:
+#         latest = tf.train.latest_checkpoint(saveDir)
+#         model.load_weights(latest)
+#         loss, acc = model.evaluate(testGen, verbose=sharedVerbose)
+#         print("Restored model, accuracy: {:5.2f}%".format(100 * acc))
+#     except:
+#         print("Error in loading: Skipping Loading")
+#         saveLoad = False
+# if not saveLoad:
+#     model.save_weights(saveLocation.format(epoch=0))
 
 
 
@@ -182,11 +180,11 @@ if numEpochs != 0:
     #Training Time
     model.fit(
         x=trainGen,
-        steps_per_epoch = numTrainBatches,
+        steps_per_epoch = numTrainBatches-1,
         epochs = numEpochs,
         verbose = sharedVerbose,
         validation_data = testGen,
-        validation_steps = numTestBatches,
+        validation_steps = numTestBatches-1,
         callbacks=[cp_callback])
 else:
     print("\n\nTraining skipped")
@@ -194,9 +192,9 @@ else:
 
 
 #Optional Model Export
-if exportWhenComplete:
-    print("Exporting Model")
-    model.save(exportLocation)
+# if exportWhenComplete:
+#     print("Exporting Model")
+#     model.save(exportLocation)
 
 
 

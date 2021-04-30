@@ -5,8 +5,8 @@ exportLocation = "SavedModels\\ExportedModels\\model_export"
 saveLoad = True             # Look for a recent save. If it exists: Load it before training
 exportWhenComplete = False
 randomSeed = 42069
-batchSize = 1
-imgSize = (224,224) 		# 32 v 32 reccomended
+batchSize = 16
+imgSize = (224, 224) 		# 32 v 32 reccomended
 numEpochs = 100 				# 0 for no training (Useful for exporting)
 sharedVerbose = 1
 numColorChannels = 3
@@ -17,5 +17,5 @@ camNum = 0
 
 if numColorChannels == 3:
 	colorChannelType = 'RGB'
-else:
+elif numColorChannels == 1:
 	colorChannelType = 'L'

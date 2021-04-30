@@ -16,23 +16,44 @@ class KerasGeneratorFromFile(keras.utils.Sequence):
 		return int(ceil(float(len(self.fileArray)) / float(self.batchSize)))   # get the number of batches
 
 	def __getitem__(self, batchIndex):
-		data = np.empty((self.batchSize, imgSize[0], imgSize[1], numColorChannels))
 		startIndex = batchIndex * self.batchSize
-		for fileIndex in range(self.batchSize):
-			fileIndex += startIndex
-			assert fileIndex < len(self.fileArray)
+		data = np.empty((len(self.fileArray)-startIndex, imgSize[0], imgSize[1], numColorChannels))
+		for indexOffset in range(self.batchSize):
+			fileIndex = startIndex + indexOffset
+			if fileIndex >= len(self.fileArray):
+				break
 			# Convert to PIL image with wanted color channel, resize it, then translate it to a numpy array
-			data[fileIndex] = preparePIL_Image(Image.open(self.fileArray[fileIndex][-1]))
-		return (data, np.array(self.fileArray[startIndex:startIndex+self.batchSize, :-1]).astype('float32'))
+			# print(self.fileArray[fileIndex])
+			try:
+				data[indexOffset] = preparePIL_Image(Image.open(self.fileArray[fileIndex][-1]))
+			except:
+				print('\n\nThe image URL:', self.fileArray[fileIndex][-1])
+				print('The fileIndex:', fileIndex)
+				print('The length of data:', len(data))
+				print('The shape of data:', data.shape)
+				input('HUHHH????')
+			# print('DEBUGGING fileIndex:', fileIndex)
+		return data, np.array(self.fileArray[startIndex:startIndex+self.batchSize, :-1]).astype('float32')
 
 
 def prepareArrayImage(imageArray):
 	# read into PIL, convert color channel, then resize
-	return np.array(Image.fromarray(imageArray).convert(colorChannelType).resize(imgSize))
+	return np.reshape(
+		np.array(
+			Image.fromarray(imageArray).convert(colorChannelType).resize(imgSize)
+		),
+		(imgSize[0], imgSize[1], numColorChannels)
+	)
 
 
 def preparePIL_Image(imgData):
 	return np.array(imgData.convert(colorChannelType).resize(imgSize))
+	# return np.reshape(
+	# 	np.array(
+	# 		imgData.convert(colorChannelType).resize(imgSize)
+	# 	),
+	# 	(imgSize[0], imgSize[1], numColorChannels)
+	# )
 
 '''
 def prepareArrayImage(array):
