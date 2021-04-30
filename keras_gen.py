@@ -38,12 +38,13 @@ class KerasGeneratorFromFile(keras.utils.Sequence):
 
 def prepareArrayImage(imageArray):
 	# read into PIL, convert color channel, then resize
-	return np.reshape(
-		np.array(
-			Image.fromarray(imageArray).convert(colorChannelType).resize(imgSize)
-		),
-		(imgSize[0], imgSize[1], numColorChannels)
-	)
+	return np.array(Image.fromarray(imageArray).convert(colorChannelType).resize(imgSize))
+	# return np.reshape(
+	# 	np.array(
+	# 		Image.fromarray(imageArray).convert(colorChannelType).resize(imgSize)
+	# 	),
+	# 	(imgSize[0], imgSize[1], numColorChannels)
+	# )
 
 
 def preparePIL_Image(imgData):

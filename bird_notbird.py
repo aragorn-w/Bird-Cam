@@ -111,9 +111,9 @@ print(f"({sampleBatch[0].shape}, {sampleBatch[1].shape}) shape returned")
 
 print("\n\nGenerating model...")
 model = Sequential([
-    Conv2D(filters=16, kernel_size=(3,3), activation='relu',input_shape=(imgSize[0], imgSize[1], numColorChannels)),
+    Conv2D(filters=8, kernel_size=(3,3), activation='relu',input_shape=(imgSize[0], imgSize[1], numColorChannels)),
     # BatchNormalization(),
-    Dropout(dropoutAmount),
+    # Dropout(dropoutAmount),
     MaxPooling2D(pool_size=(2,2)),
 
     # Conv2D(filters=32, kernel_size=(3,3), activation='relu'),
@@ -121,19 +121,19 @@ model = Sequential([
     # Dropout(dropoutAmount),
     # MaxPooling2D(pool_size=(2,2)),
 
-    Conv2D(filters=32, kernel_size=(3,3), activation='relu'),
+    Conv2D(filters=8, kernel_size=(3,3), activation='relu'),
     # BatchNormalization(),
     Dropout(dropoutAmount),
     Flatten(),
 
     Dense(16, activation="relu"),
     # BatchNormalization(),
-    Dropout(dropoutAmount)
+    # Dropout(dropoutAmount)
 ])
 for layerSize in denseLayerSizes:    # Loop to add hidden Layers
     model.add(Dense(layerSize, activation="relu"))
     # model.add(BatchNormalization())
-    model.add(Dropout(dropoutAmount))
+    # model.add(Dropout(dropoutAmount))
 
 
 # [print(i.shape, i.dtype) for i in model.inputs]
