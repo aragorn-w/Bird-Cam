@@ -17,14 +17,14 @@ from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dense, Dropout, Activa
 # Much of this code was taken from https://medium.com/@mrgarg.rajat/training-on-large-datasets-that-dont-fit-in-memory-in-keras-60a974785d71
 # ConfigVars
 datasetName = "Dataset"
-saveLocation = "SavedModels\\Checkpoints\\cp-{epoch:04d}.ckpt"
-exportLocation = "SavedModels\\ExportedModels\\model_export"
-saveLoad = False    # True means load recent save before training if it exists
-exportWhenComplete = False
-randomSeed = 12345
+saveLocation = "OldSavedModels\\Checkpoints\\cp-{epoch:04d}.ckpt"
+exportLocation = "OldSavedModels\\ExportedModels\\model_export"
+saveLoad = True    # True means load recent save before training if it exists
+exportWhenComplete = True
+randomSeed = 42069
 batchSize = 64
 imgSize = (224, 224)
-numEpochs = 100  # 0 for no training(Usefull for exporting)
+numEpochs = 1  # 0 for no training(Usefull for exporting)
 sharedVerbose = 1
 colorCode = 'RGB'
 numColorChannels = 3    # change to 1 when colorCode is 'L', grayscale

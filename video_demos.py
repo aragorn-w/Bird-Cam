@@ -1,29 +1,50 @@
+from os import environ, chdir
+environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+chdir(r'C:\Users\wanga\Documents\GitHub\Bird-Cam')
 import cv2
+import tensorflow as tf
+from PIL import Image as PIL
+import numpy as np
 
-cap = cv2.VideoCapture("./out.mp4")
-while not cap.isOpened():
-    cap = cv2.VideoCapture("./out.mp4")
-    cv2.waitKey(1000)
-    print("Wait for the header")
 
-pos_frame = cap.get(cv2.cv.CV_CAP_PROP_POS_FRAMES)
-while True:
-    flag, frame = cap.read()
-    if flag:
-        # The frame is ready and already captured
-        cv2.imshow('video', frame)
-        pos_frame = cap.get(cv2.cv.CV_CAP_PROP_POS_FRAMES)
-        print(str(pos_frame)+" frames")
-    else:
-        # The next frame is not ready, so we try to read it again
-        cap.set(cv2.cv.CV_CAP_PROP_POS_FRAMES, pos_frame-1)
-        print("frame is not ready")
-        # It is better to wait for a while for the next frame to be ready
-        cv2.waitKey(1000)
+model = tf.keras.models.load_model(r'OldSavedModels\ExportedModels\model_export')
+model.summary()
 
-    if cv2.waitKey(10) == 27:
+
+def preprocess_image(image):
+    # return np.array(image.convert('RGB').resize(224, 224))
+    return np.array(image.resize((224, 224)))
+
+
+count = 0
+cap = cv2.VideoCapture('part1.avi')
+while cap.isOpened():
+    ret, frame = cap.read()
+    height, width, layers = frame.shape
+    new_h = height // 2
+    new_w = width // 2
+    frame = cv2.resize(frame, (new_w, new_h))
+    cv2.imshow('window-name', frame)
+
+    if count % 3 == 0:
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frame = preprocess_image(PIL.fromarray(frame))
+        # print(frame.shape, 'THIS IS THE SHAPE!!!!')
+        frame = np.reshape(frame, (1, 224, 224, 3))
+        # print(model.predict(frame))
+        y_pred = np.argmax(model.predict(frame))
+
+        if y_pred == 0:
+            print('--BIRD--')
+        elif y_pred == 1:
+            print('\\\\NOT BIRD//')
+        else:
+            print('!!SQUIRREL!!')
+
+    if cv2.waitKey(10) & 0xFF == ord('q'):
         break
-    if cap.get(cv2.cv.CV_CAP_PROP_POS_FRAMES) == cap.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT):
-        # If the number of captured frames is equal to the total number of frames,
-        # we stop
-        break
+
+    count += 1
+
+cap.release()
+cv2.destroyAllWindows()  # destroy all opened windows
