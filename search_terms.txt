@@ -1,0 +1,12 @@
+BIRD
+	bird feeder with birds 1000
+	close up "bird" on branch -stock 500
+
+NOT BIRD
+	close up tree branch -bird -stock 800
+	empty birdhouses -bird 200
+	backyard garden plants close up -bird 150
+
+SQUIRREL
+	"squirrel" climbing bird feeder 1000
+	"squirrel" robbing bird feeder thief 1000
